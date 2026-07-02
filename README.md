@@ -5,17 +5,18 @@ ERP / POS system.
 
 ## Web app (no install)
 
-`site/` is a self-contained browser page: drag in the Excel file, get the 3
-files back. Everything runs client-side (SheetJS is vendored in
-`site/vendor/`, so it works offline — no upload, no CDN). It is deployed to
-**GitHub Pages** by `.github/workflows/deploy.yml`.
+`index.html` at the repo root is a self-contained browser page: drag in the
+Excel file, get the 3 files back. Everything runs client-side (SheetJS is
+vendored in `vendor/`, so it works offline — no upload, no CDN).
 
-One-time setup: **Settings → Pages → Build and deployment → Source →
-“GitHub Actions”**. After that, every push that touches `site/` redeploys.
-The page will be at `https://sh1njure.github.io/templator3000/`.
+It is served on **GitHub Pages** in *Deploy from a branch* mode
+(**Settings → Pages → Source → Deploy from a branch → this branch → `/ (root)`**).
+Because `index.html` sits at the root it becomes the homepage; the `.nojekyll`
+file makes Pages serve the assets as-is. Live at
+`https://sh1njure.github.io/templator3000/`.
 
-To run it locally instead: open `site/index.html` in a browser (or
-`python3 -m http.server` inside `site/`).
+To run it locally: open `index.html` in a browser (or `python3 -m http.server`
+from the repo root).
 
 ## The three outputs
 
