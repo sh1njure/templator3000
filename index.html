@@ -221,7 +221,10 @@
   wirePriceList("eciBtn", "eciFile", "eciName", function (l) { eciList = l; });
   wirePriceList("magBtn", "magFile", "magName", function (l) { magList = l; });
 
-  function stemOf(name) { return name.replace(/\.[^.]+$/, ""); }
+  function stemOf(name) {
+    // drop extension, then a trailing "priced" tag (e.g. TERESA_priced -> TERESA)
+    return name.replace(/\.[^.]+$/, "").replace(/[ _-]*priced$/i, "");
+  }
 
   function handleFile(file) {
     $("err").textContent = "";
