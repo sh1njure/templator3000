@@ -8,7 +8,7 @@ calculation logic of the reference TERESA examples:
 
     PRODUCT_WCEW_<name>.xlsx      product master for the "WCEW" company
     PRODUCT_LIGHTING_<name>.xlsx  product master for the "LIGHTING" company
-    SUPPLIER_DETAILS_<name>.xlsx  supplier / product-supplier reconciliation
+    SUPPLIER_LIGHTING_<name>.xlsx supplier / product-supplier reconciliation
 
 Calculation logic (verified 1:1 against the reference examples):
 
@@ -313,7 +313,7 @@ def generate(source, outdir, cfg: SupplierConfig, name=None, sheet=None):
     outputs = {
         f"PRODUCT_WCEW_{stem}.xlsx": build_wcew(rows, cfg),
         f"PRODUCT_LIGHTING_{stem}.xlsx": build_lighting(rows, cfg),
-        f"SUPPLIER_DETAILS_{stem}.xlsx": build_supplier(rows, cfg),
+        f"SUPPLIER_LIGHTING_{stem}.xlsx": build_supplier(rows, cfg),
     }
     paths = []
     for fname, wb in outputs.items():

@@ -23,7 +23,7 @@ from the repo root).
 Tick **"Also build ECI + Magnalux supplier import"** and pick the two supplier
 price lists (they are read in your browser only — never uploaded or committed,
 so the confidential trade prices stay private). This produces
-`PRODUCT_SUPPLIER_IMPORT_<stem>.xlsx` (`ProdSuppRecImport` sheet):
+`SUPPLIER_WCEW_<stem>.xlsx` (`ProdSuppRecImport` sheet):
 
 - Every product is duplicated into **two rows** — `E18` (ECI) and `M68`
   (Magnalux).
@@ -43,7 +43,8 @@ Requires the source to have the *"All candidates (with arithmetic)"* column.
 | --- | --- | --- |
 | `PRODUCT_WCEW_<name>.xlsx` | `PRODUCT TEMPLATE` | product master (WCEW company) |
 | `PRODUCT_LIGHTING_<name>.xlsx` | `PRODUCT TEMPLATE` | product master (LIGHTING company) |
-| `SUPPLIER_DETAILS_<name>.xlsx` | `ProdSuppRecImport` | supplier / product-supplier link |
+| `SUPPLIER_LIGHTING_<name>.xlsx` | `ProdSuppRecImport` | supplier link for LIGHTING (`W/` codes, W001) |
+| `SUPPLIER_WCEW_<name>.xlsx` | `ProdSuppRecImport` | ECI/Magnalux supplier link for WCEW (4th template, optional) |
 
 Column structure, number formats, column widths and calculation logic are
 copied 1:1 from the reference TERESA examples.

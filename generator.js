@@ -4,7 +4,8 @@
  * Mirrors generate_price_files.py 1:1. Given the rows parsed from a source
  * price list it builds the three output workbooks:
  *   PRODUCT_WCEW_<stem>.xlsx, PRODUCT_LIGHTING_<stem>.xlsx,
- *   SUPPLIER_DETAILS_<stem>.xlsx
+ *   SUPPLIER_LIGHTING_<stem>.xlsx  (W/ codes, W001)
+ *   SUPPLIER_WCEW_<stem>.xlsx      (ECI/Magnalux, optional 4th template)
  *
  * Requires SheetJS (XLSX) to be passed in, so this file works both in the
  * browser (window.XLSX) and under node (require('xlsx')).
@@ -350,7 +351,7 @@
     var files = [
       { name: "PRODUCT_WCEW_" + stem + ".xlsx", data: buildWcew(XLSX, rows, opts) },
       { name: "PRODUCT_LIGHTING_" + stem + ".xlsx", data: buildLighting(XLSX, rows, opts) },
-      { name: "SUPPLIER_DETAILS_" + stem + ".xlsx", data: buildSupplier(XLSX, rows, opts) }
+      { name: "SUPPLIER_LIGHTING_" + stem + ".xlsx", data: buildSupplier(XLSX, rows, opts) }
     ];
     var meta = { count: rows.length, priceName: parsed.priceName,
                  skipped: parsed.skipped, hasCandidates: parsed.hasCandidates };
@@ -363,7 +364,7 @@
           "template needs it to read the ECI/Magnalux prices.";
       } else {
         var si = buildSupplierImport(XLSX, rows, opts);
-        files.push({ name: "PRODUCT_SUPPLIER_IMPORT_" + stem + ".xlsx", data: si.data });
+        files.push({ name: "SUPPLIER_WCEW_" + stem + ".xlsx", data: si.data });
         meta.supplierImport = si.meta;
       }
     }
