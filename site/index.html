@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Price File Generator</title>
+<style>
+  :root { --clay:#D97757; --cream:#F5F4EF; --ink:#2b2b28; --line:#e4e2da;
+          --ok:#3f7d4e; --warn:#b4632a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:var(--cream); color:var(--ink); }
+  .wrap { max-width:760px; margin:0 auto; padding:40px 20px 80px; }
+  h1 { font-size:28px; margin:0 0 4px; }
+  p.sub { margin:0 0 28px; color:#6b6a63; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px;
+          padding:24px; margin-bottom:20px; }
+  #drop { border:2px dashed #cfccc2; border-radius:14px; padding:44px 20px;
+          text-align:center; cursor:pointer; transition:.15s; background:#fff; }
+  #drop.hover { border-color:var(--clay); background:#fbf3ee; }
+  #drop strong { color:var(--clay); }
+  .filename { margin-top:14px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  label { display:block; font-size:13px; font-weight:600; margin-bottom:5px; color:#555; }
+  input[type=text] { width:100%; padding:9px 11px; border:1px solid var(--line);
+          border-radius:9px; font-size:15px; background:var(--cream); }
+  .row-check { display:flex; align-items:center; gap:9px; margin-top:16px; font-size:14px; }
+  button { background:var(--clay); color:#fff; border:0; border-radius:10px;
+          padding:13px 22px; font-size:16px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  button.secondary { background:#efece4; color:var(--ink); padding:9px 16px; font-size:14px; }
+  .actions { margin-top:22px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  details { margin-top:6px; }
+  summary { cursor:pointer; font-size:14px; color:#6b6a63; }
+  #summary { display:none; }
+  #summary.show { display:block; }
+  .file-out { display:flex; align-items:center; justify-content:space-between;
+          border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:10px; }
+  .file-out .nm { font-weight:600; word-break:break-all; }
+  .badge { font-size:13px; padding:3px 9px; border-radius:20px; background:#eef3ee; color:var(--ok); }
+  .err { color:#b23b2e; margin-top:14px; white-space:pre-wrap; }
+  .muted { color:#6b6a63; font-size:14px; }
+  code { background:#f0eee7; padding:1px 5px; border-radius:5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Supplier Price File Generator</h1>
+  <p class="sub">Drop a supplier price list — get the 3 import files back. Everything runs in your browser; nothing is uploaded.</p>
+
+  <div class="card">
+    <div id="drop">
+      <div>Drag an Excel file here, or <strong>click to choose</strong></div>
+      <div class="muted" style="margin-top:6px">.xlsx / .xls</div>
+      <div class="filename" id="fname"></div>
+    </div>
+    <input type="file" id="file" accept=".xlsx,.xls" hidden>
+
+    <div id="opts" style="display:none; margin-top:22px">
+      <div class="grid">
+        <div>
+          <label>Output name</label>
+          <input type="text" id="stem">
+        </div>
+        <div id="sheetWrap" style="display:none">
+          <label>Source sheet</label>
+          <select id="sheet" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;font-size:15px;background:var(--cream)"></select>
+        </div>
+      </div>
+      <div class="row-check">
+        <input type="checkbox" id="cct" checked>
+        <label for="cct" style="margin:0">Append CCT suffix from code (…Z1L → “ - 4K”, …Z1R → “ - 3K”)</label>
+      </div>
+
+      <details>
+        <summary>Advanced (brand / supplier code)</summary>
+        <div class="grid" style="margin-top:12px">
+          <div><label>Bin Location / brand</label><input type="text" id="brand" value="FUMAGALLI"></div>
+          <div><label>Supplier code</label><input type="text" id="supplier" value="W001"></div>
+          <div><label>Product code prefix</label><input type="text" id="prefix" value="W/"></div>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button id="go">Generate 3 files</button>
+        <span class="muted" id="hint">Files download automatically.</span>
+      </div>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div class="card" id="summary">
+    <div id="meta" class="muted" style="margin-bottom:6px"></div>
+    <div id="files"></div>
+  </div>
+</div>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="generator.js"></script>
+<script>
+(function () {
+  var XLSX = window.XLSX, PriceGen = window.PriceGen;
+  var workbook = null, lastOutputs = null;
+  var $ = function (id) { return document.getElementById(id); };
+
+  var drop = $("drop"), fileInput = $("file");
+  drop.addEventListener("click", function () { fileInput.click(); });
+  ["dragenter", "dragover"].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("hover"); });
+  });
+  ["dragleave", "drop"].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove("hover"); });
+  });
+  drop.addEventListener("drop", function (ev) {
+    if (ev.dataTransfer.files.length) handleFile(ev.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", function () {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function stemOf(name) { return name.replace(/\.[^.]+$/, ""); }
+
+  function handleFile(file) {
+    $("err").textContent = "";
+    $("fname").textContent = file.name;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      try {
+        workbook = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      } catch (err) { showErr("Could not read the file: " + err.message); return; }
+      $("stem").value = stemOf(file.name);
+      var sel = $("sheet");
+      sel.innerHTML = "";
+      workbook.SheetNames.forEach(function (n) {
+        var o = document.createElement("option"); o.value = n; o.textContent = n; sel.appendChild(o);
+      });
+      $("sheetWrap").style.display = workbook.SheetNames.length > 1 ? "block" : "none";
+      $("opts").style.display = "block";
+      $("summary").classList.remove("show");
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function showErr(msg) { $("err").textContent = msg; }
+
+  $("go").addEventListener("click", function () {
+    if (!workbook) return;
+    $("err").textContent = "";
+    try {
+      var sheetName = $("sheet").value || workbook.SheetNames[0];
+      var ws = workbook.Sheets[sheetName];
+      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+      var out = PriceGen.buildFiles(XLSX, aoa, {
+        stem: $("stem").value || "OUTPUT",
+        brand: $("brand").value.trim(),
+        supplierCode: $("supplier").value.trim(),
+        prefix: $("prefix").value,
+        cct: $("cct").checked
+      });
+      lastOutputs = out;
+      out.files.forEach(function (f) { download(f); });
+      renderSummary(out);
+    } catch (err) { showErr("Could not generate files:\n" + err.message); }
+  });
+
+  function download(f) {
+    var blob = new Blob([f.data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = f.name; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function renderSummary(out) {
+    $("summary").classList.add("show");
+    var m = out.meta;
+    $("meta").textContent = "Processed " + m.count + " product row(s). Price column: “" +
+      (m.priceName || "?") + "”." + (m.skipped.length ? " Skipped " + m.skipped.length + " row(s)." : "");
+    var box = $("files"); box.innerHTML = "";
+    out.files.forEach(function (f) {
+      var d = document.createElement("div"); d.className = "file-out";
+      var nm = document.createElement("span"); nm.className = "nm"; nm.textContent = f.name;
+      var b = document.createElement("button"); b.className = "secondary"; b.textContent = "Download again";
+      b.onclick = function () { download(f); };
+      d.appendChild(nm); d.appendChild(b); box.appendChild(d);
+    });
+    if (m.skipped.length) {
+      var s = document.createElement("div"); s.className = "muted"; s.style.marginTop = "10px";
+      s.textContent = "Skipped: " + m.skipped.map(function (x) { return x.code + " (" + x.why + ")"; }).join("; ");
+      box.appendChild(s);
+    }
+  }
+})();
+</script>
+</body>
+</html>

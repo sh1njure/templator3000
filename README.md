@@ -1,7 +1,23 @@
 # templator3000 — supplier price-file generator
 
 Turns a supplier price-list workbook into the three import files used by the
-ERP / POS system:
+ERP / POS system.
+
+## Web app (no install)
+
+`site/` is a self-contained browser page: drag in the Excel file, get the 3
+files back. Everything runs client-side (SheetJS is vendored in
+`site/vendor/`, so it works offline — no upload, no CDN). It is deployed to
+**GitHub Pages** by `.github/workflows/deploy.yml`.
+
+One-time setup: **Settings → Pages → Build and deployment → Source →
+“GitHub Actions”**. After that, every push that touches `site/` redeploys.
+The page will be at `https://sh1njure.github.io/templator3000/`.
+
+To run it locally instead: open `site/index.html` in a browser (or
+`python3 -m http.server` inside `site/`).
+
+## The three outputs
 
 | Output | Sheet | Purpose |
 | --- | --- | --- |
