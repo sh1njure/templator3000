@@ -14,11 +14,13 @@ copied 1:1 from the reference TERESA examples.
 
 ## Usage
 
+Brand, supplier code and prefix default to the usual values, so the common
+case is just:
+
 ```bash
 pip install openpyxl
-python3 generate_price_files.py SOURCE.xlsx \
-    -o output -n TERESA --sheet "TERESA G9" \
-    --brand FUMAGALLI --supplier-code W001 --teresa-cct
+python3 generate_price_files.py SOURCE.xlsx -o output -n TERESA \
+    --sheet "TERESA G9" --teresa-cct
 ```
 
 | flag | meaning |
@@ -26,8 +28,8 @@ python3 generate_price_files.py SOURCE.xlsx \
 | `-o/--outdir` | output directory (default `.`) |
 | `-n/--name` | stem for the output filenames (default: source stem) |
 | `--sheet` | source sheet name (default: first sheet) |
-| `--brand` | Bin Location / brand, e.g. `FUMAGALLI` |
-| `--supplier-code` | supplier code, e.g. `W001` |
+| `--brand` | Bin Location / brand (default `FUMAGALLI`) |
+| `--supplier-code` | supplier code (default `W001`) |
 | `--prefix` | product-code prefix for LIGHTING/SUPPLIER files (default `W/`) |
 | `--teresa-cct` | append CCT suffix from the code (`…Z1L` → ` - 4K`, `…Z1R` → ` - 3K`) |
 

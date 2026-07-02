@@ -329,8 +329,10 @@ def main():
     ap.add_argument("-o", "--outdir", default=".", help="output directory")
     ap.add_argument("-n", "--name", help="stem for output filenames")
     ap.add_argument("--sheet", help="source sheet name (default: first)")
-    ap.add_argument("--brand", required=True, help="Bin Location / brand name")
-    ap.add_argument("--supplier-code", required=True, help="e.g. W001")
+    ap.add_argument("--brand", default="FUMAGALLI",
+                    help="Bin Location / brand name (default: FUMAGALLI)")
+    ap.add_argument("--supplier-code", default="W001",
+                    help="supplier code (default: W001)")
     ap.add_argument("--prefix", default="W/", help="product-code prefix")
     ap.add_argument("--teresa-cct", action="store_true",
                     help="apply TERESA CCT suffix (Z1L->4K, Z1R->3K)")
