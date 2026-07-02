@@ -109,6 +109,7 @@
     var codeC = matchCol(headers, CODE_ALIASES);
     var descC = matchCol(headers, DESC_ALIASES);
     var orderC = matchCol(headers, ORDER_ALIASES);
+    var candC = matchCol(headers, ["all candidates", "candidates"]);
     var price = findPriceCol(headers);
     if (codeC === undefined || price.col === undefined)
       throw new Error("Could not identify code/price columns. Headers: " +
@@ -128,10 +129,133 @@
         code: String(code).trim(),
         desc: descC !== undefined ? (row[descC] == null ? "" : String(row[descC])) : "",
         order: orderC !== undefined ? (row[orderC] == null ? "" : String(row[orderC])) : "",
+        candidates: candC !== undefined ? (row[candC] == null ? "" : String(row[candC])) : "",
         base: p
       });
     }
-    return { rows: rows, priceName: price.name, skipped: skipped };
+    return { rows: rows, priceName: price.name, skipped: skipped,
+             hasCandidates: candC !== undefined };
+  }
+
+  // ---- 4th template: ECI / Magnalux supplier import ------------------------
+  var SI_COLOUR = { BK: "BLACK", WH: "WHITE", GY: "GREY" };
+  var SI_VARIANTS = ["SQUARE", "1L", "2L", "ROUND", "GX53", "E27", "G9",
+    "GU10", "SEN", "OP"];
+
+  function siToks(s) {
+    var m = String(s).toUpperCase().replace(/\//g, " ").match(/[A-Z0-9]+/g);
+    return m || [];
+  }
+
+  // Parse the "All candidates (with arithmetic)" free-text for the two prices
+  // and the ECI description. e.g. "ECI TERESA 50 ROUND 10.50. Magnalux 7.68."
+  function parseCandidates(txt) {
+    var out = { eciPrice: null, magPrice: null, eciDesc: "" };
+    if (!txt) return out;
+    var t = String(txt);
+    var m = t.match(/ECI\b([\s\S]*?)(?:Magnalux|Stock|$)/i);
+    if (m) {
+      var seg = m[1];
+      var nums = seg.match(/\d+(?:\.\d+)?/g);
+      if (nums) out.eciPrice = parseFloat(nums[nums.length - 1]);
+      out.eciDesc = seg.replace(/\d+(?:\.\d+)?[\s\S]*$/, "").trim();
+    }
+    var mm = t.match(/Magnalux[^\d]*(\d+(?:\.\d+)?)/i);
+    if (mm) out.magPrice = parseFloat(mm[1]);
+    return out;
+  }
+
+  // Parse a supplier price list (array-of-arrays) into [{desc,code,price}].
+  function parsePriceList(aoa) {
+    var CODE = ["product code", "code", "sku", "item"];
+    var DESC = ["description", "desc"];
+    var PRICE = ["list price", "nett", "net price", "price", "cost"];
+    var best = null, scan = Math.min(aoa.length, 12);
+    for (var r = 0; r < scan; r++) {
+      var hdr = {}, rowc = aoa[r] || [];
+      for (var c = 0; c < rowc.length; c++) {
+        var v = rowc[c];
+        if (typeof v === "string" && v.trim()) hdr[norm(v)] = c;
+      }
+      var keys = Object.keys(hdr);
+      var hc = keys.some(function (h) { return CODE.some(function (a) { return h.indexOf(a) >= 0; }); });
+      var hp = keys.some(function (h) { return PRICE.some(function (a) { return h.indexOf(a) >= 0; }); });
+      if (hc && hp) { best = { row: r, headers: hdr }; break; }
+      if (!best || keys.length > Object.keys(best.headers).length) best = { row: r, headers: hdr };
+    }
+    var H = best.headers;
+    var cc = matchCol(H, CODE), dc = matchCol(H, DESC), pc = matchCol(H, PRICE);
+    var out = [];
+    for (var rr = best.row + 1; rr < aoa.length; rr++) {
+      var row = aoa[rr] || [];
+      var code = cc !== undefined ? row[cc] : null;
+      var desc = dc !== undefined ? row[dc] : null;
+      var price = pc !== undefined ? row[pc] : null;
+      if (code == null || String(code).trim() === "") continue;
+      out.push({
+        code: String(code).trim(),
+        desc: desc == null ? "" : String(desc).trim(),
+        price: typeof price === "number" ? price : null
+      });
+    }
+    return out;
+  }
+
+  // Find the supplier's product code by confident match; null if unsure.
+  function matchSupplierCode(family, colour, variantToks, price, list) {
+    var best = null, bestScore = -1, tol = 0.02;
+    for (var i = 0; i < list.length; i++) {
+      var rowToks = siToks(list[i].desc).concat(siToks(list[i].code));
+      if (family && rowToks.indexOf(family) < 0) continue;
+      if (colour && rowToks.indexOf(colour) < 0) continue;
+      var vt = 0;
+      for (var k = 0; k < variantToks.length; k++)
+        if (rowToks.indexOf(variantToks[k]) >= 0) vt++;
+      var priceClose = price != null && list[i].price != null &&
+        Math.abs(list[i].price - price) <= tol;
+      if (vt === 0 && !priceClose) continue;   // not confident enough
+      var score = vt + (priceClose ? 3 : 0);
+      if (score > bestScore) { bestScore = score; best = list[i]; }
+    }
+    return best ? best.code : null;
+  }
+
+  // Build the 4th template. suppliers pair a code (E18/M68) with its list and
+  // which parsed price to use. Returns { data, meta }.
+  function buildSupplierImport(XLSX, rows, opts) {
+    var eci = opts.eciList || [], mag = opts.magList || [];
+    var suppliers = [
+      { code: opts.eciCode || "E18", list: eci, use: "eciPrice" },
+      { code: opts.magCode || "M68", list: mag, use: "magPrice" }
+    ];
+    var data = [], matched = { E18: 0, M68: 0 }, serial = todaySerial();
+    rows.forEach(function (p) {
+      var cand = parseCandidates(p.candidates);
+      var U = p.code.toUpperCase();
+      var family = U.split("-")[0];
+      var colour = null;
+      Object.keys(SI_COLOUR).forEach(function (k) {
+        if (U.slice(-(k.length + 1)) === "-" + k) colour = SI_COLOUR[k];
+      });
+      var qToks = siToks(p.code).concat(siToks(cand.eciDesc));
+      var variantToks = SI_VARIANTS.filter(function (v) { return qToks.indexOf(v) >= 0; });
+      suppliers.forEach(function (s) {
+        var price = cand[s.use];
+        var supCode = matchSupplierCode(family, colour, variantToks, price, s.list);
+        if (supCode) matched[s.code] = (matched[s.code] || 0) + 1;
+        data.push([
+          str(p.code), txt(s.code),
+          supCode ? str(supCode) : null,
+          price != null ? num(price, "#,##0.00") : null,
+          formula("TODAY()", "mm-dd-yy", serial)
+        ]);
+      });
+    });
+    var ws = makeSheet(XLSX, SUPPLIER_HEADERS, data, SUPPLIER_WIDTHS);
+    return {
+      data: bookBytes(XLSX, ws, "ProdSuppRecImport"),
+      meta: { rows: data.length, matched: matched }
+    };
   }
 
   // ---- cell helpers --------------------------------------------------------
@@ -223,18 +347,33 @@
     var stem = opts.stem || "OUTPUT";
     var parsed = extractRows(aoa);
     var rows = parsed.rows;
-    return {
-      files: [
-        { name: "PRODUCT_WCEW_" + stem + ".xlsx", data: buildWcew(XLSX, rows, opts) },
-        { name: "PRODUCT_LIGHTING_" + stem + ".xlsx", data: buildLighting(XLSX, rows, opts) },
-        { name: "SUPPLIER_DETAILS_" + stem + ".xlsx", data: buildSupplier(XLSX, rows, opts) }
-      ],
-      meta: { count: rows.length, priceName: parsed.priceName, skipped: parsed.skipped }
-    };
+    var files = [
+      { name: "PRODUCT_WCEW_" + stem + ".xlsx", data: buildWcew(XLSX, rows, opts) },
+      { name: "PRODUCT_LIGHTING_" + stem + ".xlsx", data: buildLighting(XLSX, rows, opts) },
+      { name: "SUPPLIER_DETAILS_" + stem + ".xlsx", data: buildSupplier(XLSX, rows, opts) }
+    ];
+    var meta = { count: rows.length, priceName: parsed.priceName,
+                 skipped: parsed.skipped, hasCandidates: parsed.hasCandidates };
+
+    // 4th template (optional): ECI / Magnalux supplier import.
+    if (opts.eciList && opts.magList) {
+      if (!parsed.hasCandidates) {
+        meta.supplierImportError =
+          'Source has no "All candidates (with arithmetic)" column — the 4th ' +
+          "template needs it to read the ECI/Magnalux prices.";
+      } else {
+        var si = buildSupplierImport(XLSX, rows, opts);
+        files.push({ name: "PRODUCT_SUPPLIER_IMPORT_" + stem + ".xlsx", data: si.data });
+        meta.supplierImport = si.meta;
+      }
+    }
+    return { files: files, meta: meta };
   }
 
   return {
     buildFiles: buildFiles, extractRows: extractRows, findHeader: findHeader,
+    parsePriceList: parsePriceList, parseCandidates: parseCandidates,
+    buildSupplierImport: buildSupplierImport,
     teresaCct: teresaCct, roundUpHalf: roundUpHalf, roundUpWhole: roundUpWhole
   };
 });

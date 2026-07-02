@@ -127,6 +127,28 @@
         <label for="cct" style="margin:0">Append CCT suffix from code (…Z1L → “ - 4K”, …Z1R → “ - 3K”)</label>
       </div>
 
+      <div class="row-check">
+        <input type="checkbox" id="si">
+        <label for="si" style="margin:0">Also build ECI + Magnalux supplier import (4th template)</label>
+      </div>
+      <div id="siBlock" style="display:none; margin-top:12px; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel2)">
+        <div class="muted" style="margin-bottom:12px">Pick each supplier price list (used only in your browser — never uploaded). Needs the source's “All candidates (with arithmetic)” column.</div>
+        <div class="grid">
+          <div>
+            <label>ECI price list (E18)</label>
+            <button type="button" class="secondary" id="eciBtn">Choose ECI file…</button>
+            <div class="muted" id="eciName" style="margin-top:6px">none loaded</div>
+            <input type="file" id="eciFile" accept=".xlsx,.xls" hidden>
+          </div>
+          <div>
+            <label>Magnalux price list (M68)</label>
+            <button type="button" class="secondary" id="magBtn">Choose Magnalux file…</button>
+            <div class="muted" id="magName" style="margin-top:6px">none loaded</div>
+            <input type="file" id="magFile" accept=".xlsx,.xls" hidden>
+          </div>
+        </div>
+      </div>
+
       <details>
         <summary>Advanced (brand / supplier code)</summary>
         <div class="grid" style="margin-top:12px">
@@ -137,7 +159,7 @@
       </details>
 
       <div class="actions">
-        <button id="go">Generate 3 files</button>
+        <button id="go">Generate files</button>
         <span class="muted" id="hint">Files download automatically.</span>
       </div>
       <div class="err" id="err"></div>
@@ -173,6 +195,32 @@
     if (fileInput.files.length) handleFile(fileInput.files[0]);
   });
 
+  // ---- 4th template: supplier price lists (loaded locally) ----------------
+  var eciList = null, magList = null;
+  $("si").addEventListener("change", function () {
+    $("siBlock").style.display = this.checked ? "block" : "none";
+  });
+  function wirePriceList(btnId, inputId, nameId, setList) {
+    $(btnId).addEventListener("click", function () { $(inputId).click(); });
+    $(inputId).addEventListener("change", function () {
+      var f = this.files[0]; if (!f) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+          var aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],
+            { header: 1, raw: true, defval: null });
+          var list = PriceGen.parsePriceList(aoa);
+          setList(list);
+          $(nameId).textContent = f.name + " — " + list.length + " products";
+        } catch (err) { $(nameId).textContent = "could not read: " + err.message; }
+      };
+      reader.readAsArrayBuffer(f);
+    });
+  }
+  wirePriceList("eciBtn", "eciFile", "eciName", function (l) { eciList = l; });
+  wirePriceList("magBtn", "magFile", "magName", function (l) { magList = l; });
+
   function stemOf(name) { return name.replace(/\.[^.]+$/, ""); }
 
   function handleFile(file) {
@@ -205,13 +253,21 @@
       var sheetName = $("sheet").value || workbook.SheetNames[0];
       var ws = workbook.Sheets[sheetName];
       var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
-      var out = PriceGen.buildFiles(XLSX, aoa, {
+      var opts = {
         stem: $("stem").value || "OUTPUT",
         brand: $("brand").value.trim(),
         supplierCode: $("supplier").value.trim(),
         prefix: $("prefix").value,
         cct: $("cct").checked
-      });
+      };
+      if ($("si").checked) {
+        if (!eciList || !magList) {
+          showErr("4th template is on but a price list is missing — load both the ECI and Magnalux files (or untick the 4th template).");
+          return;
+        }
+        opts.eciList = eciList; opts.magList = magList;
+      }
+      var out = PriceGen.buildFiles(XLSX, aoa, opts);
       lastOutputs = out;
       out.files.forEach(function (f) { download(f); });
       renderSummary(out);
@@ -229,8 +285,16 @@
   function renderSummary(out) {
     $("summary").classList.add("show");
     var m = out.meta;
-    $("meta").textContent = "Processed " + m.count + " product row(s). Price column: “" +
+    var txt = "Processed " + m.count + " product row(s). Price column: “" +
       (m.priceName || "?") + "”." + (m.skipped.length ? " Skipped " + m.skipped.length + " row(s)." : "");
+    if (m.supplierImport) {
+      var mm = m.supplierImport.matched;
+      txt += " 4th template: " + m.supplierImport.rows + " rows — ECI matched " +
+        mm.E18 + ", Magnalux matched " + mm.M68 + " (unmatched left blank).";
+    } else if (m.supplierImportError) {
+      txt += " ⚠ " + m.supplierImportError;
+    }
+    $("meta").textContent = txt;
     var box = $("files"); box.innerHTML = "";
     out.files.forEach(function (f) {
       var d = document.createElement("div"); d.className = "file-out";

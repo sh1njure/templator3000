@@ -18,6 +18,25 @@ file makes Pages serve the assets as-is. Live at
 To run it locally: open `index.html` in a browser (or `python3 -m http.server`
 from the repo root).
 
+## 4th template — ECI / Magnalux supplier import (optional)
+
+Tick **"Also build ECI + Magnalux supplier import"** and pick the two supplier
+price lists (they are read in your browser only — never uploaded or committed,
+so the confidential trade prices stay private). This produces
+`PRODUCT_SUPPLIER_IMPORT_<stem>.xlsx` (`ProdSuppRecImport` sheet):
+
+- Every product is duplicated into **two rows** — `E18` (ECI) and `M68`
+  (Magnalux).
+- **Price** is read from the source's *"All candidates (with arithmetic)"*
+  column (e.g. `ECI … 10.50. Magnalux 7.68.` → 10.50 to E18, 7.68 to M68).
+- **Supplier Product Code** is looked up in that supplier's price list by
+  matching product family + colour + variant, confirmed by price. Only
+  confident matches are filled — anything uncertain is left blank (so it won't
+  be for every row).
+- Product Code is the raw source code (no `W/` prefix); date is `=TODAY()`.
+
+Requires the source to have the *"All candidates (with arithmetic)"* column.
+
 ## The three outputs
 
 | Output | Sheet | Purpose |
