@@ -173,7 +173,7 @@
 </div>
 
 <script src="vendor/xlsx.full.min.js"></script>
-<script src="generator.js?v=7"></script>
+<script src="generator.js?v=8"></script>
 <script>
 (function () {
   var XLSX = window.XLSX, PriceGen = window.PriceGen;
@@ -274,6 +274,12 @@
       lastOutputs = out;
       out.files.forEach(function (f) { download(f); });
       renderSummary(out);
+      if ($("si").checked) {
+        var got4 = out.files.some(function (f) { return f.name.indexOf("SUPPLIER_WCEW_") === 0; });
+        if (!got4) showErr("SUPPLIER_WCEW (4th template) was NOT created. " +
+          (out.meta.supplierImportError ||
+           "Make sure both price lists loaded and the source sheet has the “All candidates (with arithmetic)” column."));
+      }
     } catch (err) { showErr("Could not generate files:\n" + err.message); }
   });
 

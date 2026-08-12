@@ -110,7 +110,7 @@
     var codeC = matchCol(headers, CODE_ALIASES);
     var descC = matchCol(headers, DESC_ALIASES);
     var orderC = matchCol(headers, ORDER_ALIASES);
-    var candC = matchCol(headers, ["all candidates", "candidates"]);
+    var candC = matchCol(headers, ["all candidates", "candidates", "candidate", "arithmetic"]);
     var price = findPriceCol(headers);
     if (codeC === undefined || price.col === undefined)
       throw new Error("Could not identify code/price columns. Headers: " +
