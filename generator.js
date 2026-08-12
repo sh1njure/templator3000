@@ -73,13 +73,14 @@
         if (typeof v === "string" && v.trim()) headers[norm(v)] = c;
       }
       var keys = Object.keys(headers);
-      var hasCode = keys.some(function (h) {
-        return CODE_ALIASES.some(function (a) { return h.indexOf(a) >= 0; });
-      });
-      var hasPrice = keys.some(function (h) {
-        return PRICE_PRIORITY.some(function (p) { return h.indexOf(p) >= 0; });
-      });
-      if (hasCode && hasPrice) return { row: r, headers: headers };
+      var codeCol = matchCol(headers, CODE_ALIASES);
+      var priceCol = findPriceCol(headers).col;
+      // A real header row has the code and price in DIFFERENT columns and
+      // several labelled columns — this rejects prose/notes rows that merely
+      // happen to contain the words "code" and "price" in one cell.
+      if (codeCol !== undefined && priceCol !== undefined &&
+          codeCol !== priceCol && keys.length >= 3)
+        return { row: r, headers: headers };
       if (!best || keys.length > Object.keys(best.headers).length)
         best = { row: r, headers: headers };
     }
@@ -154,12 +155,23 @@
     var out = { eciPrice: null, magPrice: null, eciDesc: "" };
     if (!txt) return out;
     var t = String(txt);
+    // ECI form A: "ECI <desc> <price> …"  (price is the last number in the
+    // ECI segment, up to Magnalux/Stock/end). e.g. "ECI TERESA 50 ROUND 10.50."
     var m = t.match(/ECI\b([\s\S]*?)(?:Magnalux|Stock|$)/i);
     if (m) {
       var seg = m[1];
       var nums = seg.match(/\d+(?:\.\d+)?/g);
-      if (nums) out.eciPrice = parseFloat(nums[nums.length - 1]);
-      out.eciDesc = seg.replace(/\d+(?:\.\d+)?[\s\S]*$/, "").trim();
+      if (nums) {
+        out.eciPrice = parseFloat(nums[nums.length - 1]);
+        out.eciDesc = seg.replace(/\d+(?:\.\d+)?[\s\S]*$/, "").trim();
+      }
+    }
+    // ECI form B (fallback): "supplier <price> (ECI …)"  e.g.
+    // "supplier 14.95 (ECI direct)". Deliberately NOT matched by "(Derived …",
+    // "(Stock …" or "(… NO ECI)" — those aren't a direct ECI price.
+    if (out.eciPrice == null) {
+      var mb = t.match(/supplier\s+(\d+(?:\.\d+)?)\s*\(\s*ECI/i);
+      if (mb) out.eciPrice = parseFloat(mb[1]);
     }
     var mm = t.match(/Magnalux[^\d]*(\d+(?:\.\d+)?)/i);
     if (mm) out.magPrice = parseFloat(mm[1]);
